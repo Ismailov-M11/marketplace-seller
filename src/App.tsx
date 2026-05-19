@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useAuthStore } from "./shared/store/auth";
 import LoginPage from "./pages/Login";
 import ChangePasswordPage from "./pages/ChangePassword";
@@ -17,9 +18,29 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Reads ?token= from URL and logs in automatically (admin impersonation)
+function TokenHandler() {
+  const { setToken } = useAuthStore();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
+      setToken(token);
+      // Remove token from URL
+      window.history.replaceState({}, "", window.location.pathname);
+      navigate("/", { replace: true });
+    }
+  }, []);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <TokenHandler />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
