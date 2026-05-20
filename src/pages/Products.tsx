@@ -32,8 +32,8 @@ interface Product {
   id: number;
   name_uz: string;
   name_ru?: string;
-  category?: { id: number; name_uz: string };
-  variants: Array<{ id: number; name: string; price: number; stock_quantity: number; sku?: string }>;
+  category_id?: number | null;
+  variants: Array<{ id: number; name_uz?: string | null; name_ru?: string | null; price: number; stock_quantity: number; sku?: string | null }>;
   images: Array<{ id: number; url: string }>;
   is_active: boolean;
 }
@@ -55,8 +55,8 @@ export default function ProductsPage() {
     queryKey: ["products", search, categoryFilter],
     queryFn: () =>
       api
-        .get("/api/v1/seller/products", { params: { search: search || undefined, category_id: categoryFilter || undefined } })
-        .then((r) => r.data),
+        .get("/api/v1/seller/products", { params: { q: search || undefined, category_id: categoryFilter || undefined } })
+        .then((r) => r.data.items),
   });
 
   const { data: categories = [] } = useQuery<Category[]>({
@@ -104,8 +104,8 @@ export default function ProductsPage() {
     reset({
       name_uz: p.name_uz,
       name_ru: p.name_ru ?? "",
-      category_id: p.category?.id ?? null,
-      variants: p.variants.map((v) => ({ id: v.id, name: v.name, price: v.price / 100, stock_quantity: v.stock_quantity, sku: v.sku })),
+      category_id: p.category_id ?? null,
+      variants: p.variants.map((v) => ({ id: v.id, name: v.name_uz || v.name_ru || "", price: v.price / 100, stock_quantity: v.stock_quantity, sku: v.sku || "" })),
     });
     setModal({ open: true, editing: p });
   }
@@ -118,7 +118,7 @@ export default function ProductsPage() {
   function onSubmit(data: ProductForm) {
     const payload = {
       ...data,
-      variants: data.variants.map((v) => ({ ...v, price: Math.round(v.price * 100) })),
+      variants: data.variants.map((v) => ({ ...v, name_uz: v.name, price: Math.round(v.price * 100) })),
     };
     if (modal.editing) {
       updateMutation.mutate({ id: modal.editing.id, data: payload });
@@ -185,10 +185,12 @@ export default function ProductsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-gray-900 truncate">{p.name_uz}</div>
-                  <div className="text-xs text-gray-400">{p.category?.name_uz} · {p.variants.length} variant</div>
+                  <div className="text-xs text-gray-400">
+                    {p.category_id ? categories.find((c) => c.id === p.category_id)?.name_uz : ""}{p.category_id ? " · " : ""}{p.variants.length} variant
+                  </div>
                 </div>
                 <div className="text-sm font-semibold text-gray-700">
-                  {formatPrice(Math.min(...p.variants.map((v) => v.price)))}
+                  {p.variants.length > 0 ? formatPrice(Math.min(...p.variants.map((v) => v.price))) : "—"}
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -217,7 +219,7 @@ export default function ProductsPage() {
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     {p.variants.map((v) => (
                       <div key={v.id} className="bg-white rounded-lg p-2 border border-gray-100">
-                        <div className="font-medium text-gray-800">{v.name}</div>
+                        <div className="font-medium text-gray-800">{v.name_uz || v.name_ru || "Variant"}</div>
                         <div className="text-blue-600">{formatPrice(v.price)}</div>
                         <div className="text-gray-400">Stok: {v.stock_quantity}</div>
                       </div>

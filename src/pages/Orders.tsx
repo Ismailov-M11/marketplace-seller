@@ -45,8 +45,8 @@ interface Order {
   status: string;
   total: number;
   created_at: string;
-  customer: { id: number; first_name: string; last_name?: string; phone?: string };
-  items_count: number;
+  customer_name: string;
+  customer_phone: string;
 }
 
 export default function OrdersPage() {
@@ -55,7 +55,7 @@ export default function OrdersPage() {
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["orders", statusFilter],
     queryFn: () =>
-      api.get("/api/v1/seller/orders", { params: { status: statusFilter || undefined } }).then((r) => r.data),
+      api.get("/api/v1/seller/orders", { params: { status: statusFilter || undefined } }).then((r) => r.data.items),
     refetchInterval: 20_000,
   });
 
@@ -106,7 +106,7 @@ export default function OrdersPage() {
                       </span>
                     </div>
                     <div className="text-sm text-gray-500 mt-0.5">
-                      {order.customer.first_name} {order.customer.last_name ?? ""} · {order.items_count} mahsulot
+                      {order.customer_name} · {order.customer_phone}
                     </div>
                   </div>
                 </div>
