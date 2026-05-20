@@ -95,6 +95,23 @@ export default function ProductsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
   });
 
+  const uploadImageMutation = useMutation({
+    mutationFn: ({ productId, file }: { productId: number; file: File }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return api.post(`/api/v1/seller/products/${productId}/images`, formData);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Rasm qo'shildi"); },
+    onError: () => toast.error("Rasmni yuklashda xatolik"),
+  });
+
+  const deleteImageMutation = useMutation({
+    mutationFn: ({ productId, imageId }: { productId: number; imageId: number }) =>
+      api.delete(`/api/v1/seller/products/${productId}/images/${imageId}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Rasm o'chirildi"); },
+    onError: () => toast.error("Xatolik"),
+  });
+
   function openAdd() {
     reset({ name_uz: "", name_ru: "", description_uz: "", category_id: null, variants: [{ name: "Asosiy", price: 0, stock_quantity: 0 }] });
     setModal({ open: true });
@@ -215,15 +232,51 @@ export default function ProductsPage() {
                 </button>
               </div>
               {expandedId === p.id && (
-                <div className="border-t border-gray-50 bg-gray-50 px-4 py-3">
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    {p.variants.map((v) => (
-                      <div key={v.id} className="bg-white rounded-lg p-2 border border-gray-100">
-                        <div className="font-medium text-gray-800">{v.name_uz || v.name_ru || "Variant"}</div>
-                        <div className="text-blue-600">{formatPrice(v.price)}</div>
-                        <div className="text-gray-400">Stok: {v.stock_quantity}</div>
-                      </div>
-                    ))}
+                <div className="border-t border-gray-50 bg-gray-50 px-4 py-3 space-y-3">
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-2">Variantlar</div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      {p.variants.map((v) => (
+                        <div key={v.id} className="bg-white rounded-lg p-2 border border-gray-100">
+                          <div className="font-medium text-gray-800">{v.name_uz || v.name_ru || "Variant"}</div>
+                          <div className="text-blue-600">{formatPrice(v.price)}</div>
+                          <div className="text-gray-400">Stok: {v.stock_quantity}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-gray-500 mb-2">Rasmlar</div>
+                    <div className="flex gap-2 flex-wrap items-center">
+                      {p.images.map((img) => (
+                        <div key={img.id} className="relative group w-16 h-16">
+                          <img src={img.url} alt="" className="w-full h-full object-cover rounded-lg border border-gray-200" />
+                          <button
+                            onClick={() => deleteImageMutation.mutate({ productId: p.id, imageId: img.id })}
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity leading-none"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      <label className="w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-400 hover:text-blue-400 text-gray-400 transition-colors">
+                        {uploadImageMutation.isPending ? (
+                          <span className="text-xs">...</span>
+                        ) : (
+                          <Plus size={20} />
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) uploadImageMutation.mutate({ productId: p.id, file });
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
