@@ -1,32 +1,39 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm, useFieldArray } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { api } from "../shared/api/client";
-import { Plus, Search, Edit2, Trash2, Package, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Package, ChevronDown, ChevronUp, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+
+function ImageLightbox({ images, startIndex, onClose }: { images: Array<{ id: number; url: string }>; startIndex: number; onClose: () => void }) {
+  const [idx, setIdx] = useState(startIndex);
+  return (
+    <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 text-white"><X size={28} /></button>
+      <button
+        onClick={(e) => { e.stopPropagation(); setIdx((i) => Math.max(0, i - 1)); }}
+        className="absolute left-4 text-white disabled:opacity-30"
+        disabled={idx === 0}
+      ><ChevronLeft size={32} /></button>
+      <img
+        src={images[idx].url}
+        alt=""
+        className="max-h-[90vh] max-w-[90vw] object-contain rounded-xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+      <button
+        onClick={(e) => { e.stopPropagation(); setIdx((i) => Math.min(images.length - 1, i + 1)); }}
+        className="absolute right-4 text-white disabled:opacity-30"
+        disabled={idx === images.length - 1}
+      ><ChevronRight size={32} /></button>
+      <div className="absolute bottom-4 text-white text-sm">{idx + 1} / {images.length}</div>
+    </div>
+  );
+}
 
 function formatPrice(tiyins: number) {
   return `${Math.floor(tiyins / 100).toLocaleString("ru-RU")} sum`;
 }
-
-const variantSchema = z.object({
-  id: z.number().optional(),
-  name: z.string().min(1, "Nom kerak"),
-  price: z.number().min(0),
-  stock_quantity: z.number().min(0),
-  sku: z.string().optional(),
-});
-
-const productSchema = z.object({
-  name_uz: z.string().min(1, "Nomni kiriting"),
-  name_ru: z.string().optional(),
-  description_uz: z.string().optional(),
-  category_id: z.number({ required_error: "Kategoriya tanlang" }).nullable(),
-  variants: z.array(variantSchema).min(1, "Kamida 1 variant kerak"),
-});
-type ProductForm = z.infer<typeof productSchema>;
 
 interface Product {
   id: number;
@@ -46,10 +53,11 @@ interface Category {
 
 export default function ProductsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const [modal, setModal] = useState<{ open: boolean; editing?: Product }>({ open: false });
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [lightbox, setLightbox] = useState<{ images: Array<{ id: number; url: string }>; index: number } | null>(null);
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ["products", search, categoryFilter],
@@ -62,25 +70,6 @@ export default function ProductsPage() {
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["categories"],
     queryFn: () => api.get("/api/v1/seller/categories").then((r) => r.data),
-  });
-
-  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<ProductForm>({
-    resolver: zodResolver(productSchema),
-    defaultValues: { variants: [{ name: "Asosiy", price: 0, stock_quantity: 0 }] },
-  });
-
-  const { fields, append, remove } = useFieldArray({ control, name: "variants" });
-
-  const createMutation = useMutation({
-    mutationFn: (data: ProductForm) => api.post("/api/v1/seller/products", data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); closeModal(); toast.success("Mahsulot qo'shildi"); },
-    onError: () => toast.error("Xatolik yuz berdi"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: ProductForm }) => api.patch(`/api/v1/seller/products/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); closeModal(); toast.success("Yangilandi"); },
-    onError: () => toast.error("Xatolik yuz berdi"),
   });
 
   const deleteMutation = useMutation({
@@ -112,38 +101,6 @@ export default function ProductsPage() {
     onError: () => toast.error("Xatolik"),
   });
 
-  function openAdd() {
-    reset({ name_uz: "", name_ru: "", description_uz: "", category_id: null, variants: [{ name: "Asosiy", price: 0, stock_quantity: 0 }] });
-    setModal({ open: true });
-  }
-
-  function openEdit(p: Product) {
-    reset({
-      name_uz: p.name_uz,
-      name_ru: p.name_ru ?? "",
-      category_id: p.category_id ?? null,
-      variants: p.variants.map((v) => ({ id: v.id, name: v.name_uz || v.name_ru || "", price: v.price / 100, stock_quantity: v.stock_quantity, sku: v.sku || "" })),
-    });
-    setModal({ open: true, editing: p });
-  }
-
-  function closeModal() {
-    setModal({ open: false });
-    reset();
-  }
-
-  function onSubmit(data: ProductForm) {
-    const payload = {
-      ...data,
-      variants: data.variants.map((v) => ({ ...v, name_uz: v.name, price: Math.round(v.price * 100) })),
-    };
-    if (modal.editing) {
-      updateMutation.mutate({ id: modal.editing.id, data: payload });
-    } else {
-      createMutation.mutate(payload);
-    }
-  }
-
   if (isLoading) return <div className="text-gray-400">Yuklanmoqda...</div>;
 
   return (
@@ -151,7 +108,7 @@ export default function ProductsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Mahsulotlar</h1>
         <button
-          onClick={openAdd}
+          onClick={() => navigate("/products/new")}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
         >
           <Plus size={16} /> Qo'shish
@@ -184,7 +141,7 @@ export default function ProductsPage() {
         <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
           <Package size={40} className="mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500 mb-4">Mahsulotlar topilmadi</p>
-          <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
+          <button onClick={() => navigate("/products/new")} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
             Birinchi mahsulotni qo'shish
           </button>
         </div>
@@ -218,7 +175,7 @@ export default function ProductsPage() {
                   />
                   <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
                 </label>
-                <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded">
+                <button onClick={() => navigate(`/products/${p.id}/edit`)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded">
                   <Edit2 size={14} />
                 </button>
                 <button
@@ -248,9 +205,14 @@ export default function ProductsPage() {
                   <div>
                     <div className="text-xs font-medium text-gray-500 mb-2">Rasmlar</div>
                     <div className="flex gap-2 flex-wrap items-center">
-                      {p.images.map((img) => (
+                      {p.images.map((img, imgIdx) => (
                         <div key={img.id} className="relative group w-16 h-16">
-                          <img src={img.url} alt="" className="w-full h-full object-cover rounded-lg border border-gray-200" />
+                          <img
+                            src={img.url}
+                            alt=""
+                            className="w-full h-full object-cover rounded-lg border border-gray-200 cursor-zoom-in"
+                            onClick={() => setLightbox({ images: p.images, index: imgIdx })}
+                          />
                           <button
                             onClick={() => deleteImageMutation.mutate({ productId: p.id, imageId: img.id })}
                             className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity leading-none"
@@ -285,100 +247,12 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {modal.open && (
-        <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg my-4">
-            <div className="p-5 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">
-                {modal.editing ? "Mahsulotni tahrirlash" : "Yangi mahsulot"}
-              </h2>
-            </div>
-            <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nomi (UZ) *</label>
-                  <input {...register("name_uz")} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  {errors.name_uz && <p className="text-red-500 text-xs mt-1">{errors.name_uz.message}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nomi (RU)</label>
-                  <input {...register("name_ru")} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Kategoriya</label>
-                <select
-                  {...register("category_id", { valueAsNumber: true })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Tanlang</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name_uz}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tavsif</label>
-                <textarea {...register("description_uz")} rows={2} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-700">Variantlar</label>
-                  <button
-                    type="button"
-                    onClick={() => append({ name: "", price: 0, stock_quantity: 0 })}
-                    className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                  >
-                    <Plus size={12} /> Variant qo'shish
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {fields.map((field, i) => (
-                    <div key={field.id} className="grid grid-cols-12 gap-2 items-start">
-                      <input
-                        {...register(`variants.${i}.name`)}
-                        placeholder="Nom"
-                        className="col-span-4 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                      <input
-                        {...register(`variants.${i}.price`, { valueAsNumber: true })}
-                        type="number"
-                        placeholder="Narx (sum)"
-                        className="col-span-4 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                      <input
-                        {...register(`variants.${i}.stock_quantity`, { valueAsNumber: true })}
-                        type="number"
-                        placeholder="Stok"
-                        className="col-span-3 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                      {fields.length > 1 && (
-                        <button type="button" onClick={() => remove(i)} className="col-span-1 text-red-400 hover:text-red-600 flex justify-center">
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {errors.variants && <p className="text-red-500 text-xs mt-1">{errors.variants.message}</p>}
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={closeModal} className="flex-1 border border-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium">
-                  Bekor qilish
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-                >
-                  {modal.editing ? "Saqlash" : "Qo'shish"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {lightbox && (
+        <ImageLightbox
+          images={lightbox.images}
+          startIndex={lightbox.index}
+          onClose={() => setLightbox(null)}
+        />
       )}
     </div>
   );

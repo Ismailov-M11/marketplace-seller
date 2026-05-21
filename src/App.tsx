@@ -6,6 +6,7 @@ import ChangePasswordPage from "./pages/ChangePassword";
 import DashboardPage from "./pages/Dashboard";
 import CatalogPage from "./pages/Catalog";
 import ProductsPage from "./pages/Products";
+import ProductEditPage from "./pages/ProductEdit";
 import OrdersPage from "./pages/Orders";
 import OrderDetailPage from "./pages/OrderDetail";
 import SettingsPage from "./pages/Settings";
@@ -53,6 +54,8 @@ export default function App() {
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="/catalog" element={<CatalogPage />} />
                   <Route path="/products" element={<ProductsPage />} />
+                  <Route path="/products/new" element={<ProductEditPage />} />
+                  <Route path="/products/:id/edit" element={<ProductEditPage />} />
                   <Route path="/orders" element={<OrdersPage />} />
                   <Route path="/orders/:id" element={<OrderDetailPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
