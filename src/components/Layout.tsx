@@ -1,19 +1,21 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, BookOpen, Package, ShoppingCart, Settings, LogOut, Bell } from "lucide-react";
+import { LayoutDashboard, BookOpen, Package, ShoppingCart, Settings, LogOut } from "lucide-react";
 import { useAuthStore } from "../shared/store/auth";
+import { useSellerLang, st } from "../shared/store/lang";
 import { api } from "../shared/api/client";
-
-const NAV = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/catalog", icon: BookOpen, label: "Katalog" },
-  { to: "/products", icon: Package, label: "Mahsulotlar" },
-  { to: "/orders", icon: ShoppingCart, label: "Buyurtmalar" },
-  { to: "/settings", icon: Settings, label: "Sozlamalar" },
-];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { logout, user } = useAuthStore();
+  const { lang, setLang } = useSellerLang();
+
+  const NAV = [
+    { to: "/",        icon: LayoutDashboard, label: st("dashboard", lang) },
+    { to: "/catalog", icon: BookOpen,         label: st("catalog",   lang) },
+    { to: "/products",icon: Package,          label: st("products",  lang) },
+    { to: "/orders",  icon: ShoppingCart,     label: st("orders",    lang) },
+    { to: "/settings",icon: Settings,         label: st("settings",  lang) },
+  ];
 
   const handleLogout = async () => {
     try { await api.post("/api/v1/seller/auth/logout"); } catch {}
@@ -23,7 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Mobile bottom nav — only on small screens */}
+      {/* Mobile bottom nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 md:hidden">
         <div className="flex">
           {NAV.map(({ to, icon: Icon, label }) => (
@@ -44,8 +46,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 bg-white border-r border-gray-100 flex-col">
-        <div className="h-16 border-b border-gray-100 flex items-center px-6">
+        <div className="h-16 border-b border-gray-100 flex items-center justify-between px-6">
           <span className="font-bold text-lg text-blue-600">🛍 {user?.full_name?.split(" ")[0] || "Seller"}</span>
+          <button
+            onClick={() => setLang(lang === "uz" ? "ru" : "uz")}
+            className="text-xs font-semibold border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-50 transition"
+          >
+            {lang === "uz" ? "RU" : "UZ"}
+          </button>
         </div>
         <nav className="flex-1 p-4 space-y-1">
           {NAV.map(({ to, icon: Icon, label }) => (
@@ -70,7 +78,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             onClick={handleLogout}
             className="flex items-center gap-2 text-sm text-gray-600 hover:text-red-600"
           >
-            <LogOut size={16} /> Chiqish
+            <LogOut size={16} /> {st("logout", lang)}
           </button>
         </div>
       </aside>
